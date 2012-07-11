@@ -1,0 +1,38 @@
+#!/bin/bash
+#
+# vis - Vim singleton for CLI
+#
+# Copyright (c) 2012 Ryuji Matsumura <ryuji@mgiken.com>
+# Licensed under the MIT license:
+# http://www.opensource.org/licenses/mit-license.php
+#
+
+if [ $# -ne 1 ]; then
+  echo "usage: $(basename $0) <file>"
+  exit 2
+fi
+
+TEMP_FILE="$(tempfile)"
+EDIT_FILE="$(cd $(dirname $1) && pwd)/$(basename $1)"
+TARGET_PANE="-t:.0"  # current window, first pane
+SIP="$(tmux display-message -p "#S:#I:0")"
+PTY="$(tmux server-info |
+        egrep flags=\|bytes |
+        awk '/windows/    { s = $2 }
+             /references/ { i = $1 }
+             /bytes/      { print s i $1 $2 }' |
+        grep "$SIP" |
+        cut -d: -f4)"
+PTS="${PTY#/dev/}"
+
+if [ "$(ps ao tty,command | grep $PTS'\s\+vim\?\s')" ]; then
+  echo ":e! $EDIT_FILE" >$TEMP_FILE
+else
+  echo "vim $EDIT_FILE" >$TEMP_FILE
+fi
+
+tmux load-buffer  $TEMP_FILE
+tmux paste-buffer $TARGET_PANE
+tmux select-pane  $TARGET_PANE
+
+rm -rf $TEMP_FILE
